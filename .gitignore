@@ -19,6 +19,8 @@ tinterface/ManyMouse.dll
 
 *.so
 
+*.iml
+
 tinterface/ToDo.txt
 
 tinterface/Readme.txt

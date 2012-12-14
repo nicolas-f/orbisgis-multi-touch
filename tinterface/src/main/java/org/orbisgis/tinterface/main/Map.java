@@ -6,8 +6,13 @@ import java.io.InputStream;
 
 import org.gdms.data.DataSource;
 import org.gdms.data.DataSourceCreationException;
+import org.gdms.data.DataSourceFactory;
+import org.gdms.data.NoSuchTableException;
+import org.gdms.data.stream.StreamSource;
+import org.gdms.data.stream.StreamSourceDefinition;
 import org.gdms.driver.DriverException;
 import org.gdms.driver.driverManager.DriverLoadException;
+import org.gdms.source.SourceManager;
 import org.gdms.sql.engine.ParseException;
 import org.mt4j.MTApplication;
 import org.mt4j.components.visibleComponents.shapes.MTRectangle;
@@ -71,12 +76,13 @@ public class Map extends MTRectangle {
 		mapContext = getSampleMapContext();
 		frame.init(mapContext, (int)(mtApplication.width*buffersize), (int)(mtApplication.height*buffersize));
 		Envelope extent = frame.mapTransform.getExtent();
-		double facteur = (buffersize-1)/2;
-		frame.mapTransform.setExtent(
-				new Envelope(extent.getMinX() - facteur*extent.getWidth(), extent.getMaxX() + facteur*extent.getWidth(),
-					extent.getMinY() - facteur*extent.getHeight(), extent.getMaxY() + facteur*extent.getHeight()));
-	
+        if(extent!=null) {
+            double facteur = (buffersize-1)/2;
+            frame.mapTransform.setExtent(
+                    new Envelope(extent.getMinX() - facteur*extent.getWidth(), extent.getMaxX() + facteur*extent.getWidth(),
+                        extent.getMinY() - facteur*extent.getHeight(), extent.getMaxY() + facteur*extent.getHeight()));
 
+        }
         mapContext.draw(frame.mapTransform, new NullProgressMonitor());
 
 		BufferedImage im = frame.mapTransform.getImage();
@@ -98,6 +104,9 @@ public class Map extends MTRectangle {
 		// TODO Auto-generated method stub
                 
 		Envelope extent = frame.mapTransform.getExtent();
+        if(extent==null) {
+            return;
+        }
 		double dx = x*extent.getWidth()/(this.getWidthXYGlobal());
 		double dy = y*extent.getHeight()/(this.getHeightXYGlobal());
 		frame.mapTransform.setExtent(
@@ -126,14 +135,35 @@ public class Map extends MTRectangle {
 	private static MapContext getSampleMapContext()
 			throws IllegalStateException, LayerException {
 		MapContext mapContext = new OwsMapContext();
-		InputStream fileContent = Map.class.getResourceAsStream("Iris.ows");
-		mapContext.read(fileContent);
 		mapContext.open(null);
+        mapContext.setBoundingBox(new Envelope(303510.9,306636.7,2252216.3,2254069.2));
+        DataManager dm = Services.getService(DataManager.class);
+        DataSourceFactory srcFactory  = dm.getDataSourceFactory();
+        SourceManager sm = srcFactory.getSourceManager();
+        String layerName = "contouring_noise_map";
+        String uniqueLayerName = layerName;
+        // Construct Wms Layer                                                                                                        String uniqueLayerName = layerName;
+        if (sm.exists(layerName)) {
+            uniqueLayerName = sm.getUniqueName(layerName);
+        }
+        StreamSource wmsSource = new StreamSource("http://services.orbisgis.org/wms/wms", 80, "contouring_noise_map", "wms", "image/png", "EPSG:27572");
+        StreamSourceDefinition streamSourceDefinition = new StreamSourceDefinition(wmsSource);
+        // Add this layer in the SourceManager
+        sm.register(uniqueLayerName, streamSourceDefinition);
+        try {
+            // Create a new Layer, using DataSource
+            ILayer layer = mapContext.createLayer(srcFactory.getDataSource(uniqueLayerName));
+            mapContext.getLayerModel().addLayer(layer);
+        } catch (NoSuchTableException ex) {
+                System.err.println("Could not download WML layer");
+        } catch (DataSourceCreationException ex) {
+            System.err.println("Could not download WML layer");
+        }
 		return mapContext;
 	}
 
 	/**
-	 * This function get the informations corresponding the the position of the input vector
+	 * This function get the information corresponding the the position of the input vector
 	 * @param vector the vector corresponding to the position
 	 * @return the information about this position (String)
 	 */
